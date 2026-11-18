@@ -29,7 +29,15 @@ Gate: `fixed` → **exit 0 (merge)**; `seeded_regression` → **exit 1**, blocke
 
 ## v2 (Advanced/Expert)
 
-- **Run ID / eval set SHA:** `E-swarm-20261118-<v2sha>` · eval set v2 · metric_spec 2.0 · cùng seeds.
-- **Ngưỡng chọn từ A/A:** `pass_hat_5` đặt **≥ 0.80**, ngoài dải nhiễu A/A đo trên 2 bộ seed (Δ = 0 trên MockLLM; LLM thật có dải > 0 nên sàn phải nằm ngoài dải).
-- **Slice bắt lỗi:** `money_movement` bắt `slice_regression` (lỗi cộng clause chỉ ở claim có hoàn tiền, seed lẻ; trung bình vẫn trên sàn); `adversarial` bắt pack tấn công (injection, stale clause, cross-principal).
-- **Giới hạn cỡ mẫu:** bug 1/3 seed (`rare`) không phát hiện ổn định với 5 seed; không hạ ngưỡng để gate "bắt được" nó.
+- **Run ID / eval set SHA:** `E-swarm-20261118-9467` · eval set v2 `9467d201b125` (28 item = 14 v1 + 14 adversarial × 5 seed) · metric_spec 2.0 · seeds 11/22/33/44/55.
+- **Baseline v2:** pass_rate 0.9786 · refund_amount_correct 0.9786 · db_fact_kept 0.9786 · reply_matches_ledger 1.0 · pass_hat_5 0.8929 · pass_at_5 1.0 · cost_per_success 50.8077. 3 item thua 1 seed (C-002/C-101/C-102 @55 — weakness ticket_trust của swarm).
+- **Ngưỡng chọn từ A/A:** A/A `--aa 66,77,88,99,110` cho **Δ = 0.0000 trên mọi metric** (MockLLM tất định). Với LLM thật dải nhiễu > 0, nên sàn `pass_hat_5 = 0.85` phải nằm ngoài dải đó và dưới baseline 0.8929. Floor 0.85 chặn `flaky_regression` (0.5714) trong khi `pass_rate` trung bình 0.9143 vẫn trên sàn 0.85.
+- **Slice bắt lỗi:**
+  - `slice:money_movement/pass_rate` min 0.97: `slice_regression` có pass_rate trung bình **0.9357 > 0.85** và CI Δ [−0.121, +0.029] chạm 0, nhưng slice money = **0.8500** ⇒ BLOCK đúng lỗi cộng clause chỉ ở claim có hoàn tiền, seed lẻ.
+  - `slice:adversarial/pass_rate` min 0.90: pack tấn công (injection, stale clause, cross-principal) không được tụt.
+  - `slice:denial/pass_rate` min 0.90: baseline 0.9455, fixed/honest 1.0.
+- **Scorecard (`lab9.mutation`):** `fixed` merge · `honest_refactor` merge (cost chỉ warn +13%, không chặn) · `seeded_regression` block · `slice_regression` block (`slice:money_movement/pass_rate`) · `flaky_regression` block (`pass_rate`, `pass_hat_5`, `slice:money_movement/pass_rate`) ⇒ **3/3 regression bị chặn, 0 báo nhầm**.
+- **M3 detect:** detection 80.00% (target ≥80%), false alarms 0.00% (≤10%).
+- **Traps (`lab9.traps`):** 4/4 bị chặn — `evaluator_errors_as_nan` (NaN + row None), `dropped_failing_rows` (số dòng/tập key), `cherry_picked_seeds` (tập (item,seed)), `loosened_spec` (ratchet với `--base-spec`). File trong `reports/traps/`.
+- **Giới hạn cỡ mẫu:** bug 1/3 seed (`rare`) không phát hiện ổn định với 5 seed (chỉ seed 33). Với 28 item, pass_hat_5 nhảy bậc 1/28 ≈ 0.036 mỗi item; không hạ ngưỡng để gate "bắt được" một bug hiếm hơn. Hidden variant không để lại `model_override` (`quiet_override`) vẫn bị chặn qua `pass_rate`/`refund_amount_correct` + CI, không qua `db_fact_kept`.
+
