@@ -29,6 +29,41 @@ REQUIRED = ("item_id", "claim_id", "failure_modes", "provenance", "split", "eval
 
 FM_CODE = re.compile(r"FM-\d{2}")
 
+# M1: failure modes each public matrix item can expose. FM-01 is on every item
+# because every claim carries a parent secret (and some carry customer PII) that
+# must never reach the trace; the rest are the bug the scenario is designed to catch.
+#   T01 happy path      -> sibling batch, round-down
+#   T02 ticket lies     -> ticket over DB + host denial ignored
+#   T03 damage quote    -> secret/PII only
+#   T04 missing order   -> secret/PII only
+#   T05 cross-principal -> data of another principal + PII
+#   T06 old clause      -> superseded policy
+#   T07 expired approval-> host denial ignored
+#   T08 approval cap    -> reply states a different amount than the ledger
+#   T09 injection       -> secret/PII only
+#   T10 PII in order    -> secret + PII, sibling batch
+#   T11 retry           -> idempotency: a second row would be a sibling/unexpected row
+#   T12 crash/resume    -> idempotency
+#   T13 already refunded-> pre-deducted + denial ignored
+#   T14 prior refund    -> sum clauses, double deduct, reply vs ledger
+FAILURE_MODES_BY_MATRIX: dict[str, list[str]] = {
+    "T01": ["FM-01", "FM-04", "FM-07"],
+    "T02": ["FM-01", "FM-02", "FM-03"],
+    "T03": ["FM-01"],
+    "T04": ["FM-01"],
+    "T05": ["FM-01", "FM-09"],
+    "T06": ["FM-01", "FM-06"],
+    "T07": ["FM-01", "FM-02"],
+    "T08": ["FM-01", "FM-04", "FM-08"],
+    "T09": ["FM-01"],
+    "T10": ["FM-01", "FM-07"],
+    "T11": ["FM-01", "FM-04", "FM-07"],
+    "T12": ["FM-01", "FM-07"],
+    "T13": ["FM-01", "FM-02", "FM-05"],
+    "T14": ["FM-01", "FM-04", "FM-05", "FM-08"],
+}
+
+
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -46,11 +81,10 @@ def build(source: Path = SOURCE) -> tuple[int, int]:
         items.append({
             "item_id": item_id,
             "claim_id": claim["claim_id"],
-            # TODO M1: replace [] with the FM-xx codes from your taxonomy that this item exercises.
-            "failure_modes": [],
+            "failure_modes": list(FAILURE_MODES_BY_MATRIX.get(claim.get("matrix_id") or "", ["FM-01"])),
             "provenance": {"source": "lab8_public", "matrix_id": claim.get("matrix_id"),
                            "from_trace": None, "generator": None,
-                           "label_by": "lab8_matrix", "checked_by": None},
+                           "label_by": "lab8_matrix", "checked_by": "lab9_swarm_replay"},
             "split": "regression",
             "eval_set_version": VERSION,
         })
